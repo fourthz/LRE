@@ -1,0 +1,1288 @@
+---
+title: "One Sample LRE - New & Improved - February 9, 2018"
+author: "Grant G. Morgan"
+date: "February 9, 2018"
+---
+
+### First things first...
+
+As noted below, the sign test function in the PAWSR package does not output the p-value. Below I tweak the sign test code to produce the p-value. I named this new function **gSIGN.test**. The majority of the code is taken straight from the SIGN.test function within the PAWSR package.
+
+```{r}
+# The sign test function from PAWSR and other R packages do not output the p-value be default
+# The function below modifies the existing sign test function to write out the p-values.
+
+gSIGN.test<-function (x, y = NULL, md = 0, alternative = "two.sided", conf.level = 0.95) 
+{
+    choices <- c("two.sided", "greater", "less")
+    alt <- pmatch(alternative, choices)
+    alternative <- choices[alt]
+    if (length(alternative) > 1 || is.na(alternative)) 
+        stop("alternative must be one \"greater\", \"less\", \"two.sided\"")
+    if (!missing(md)) 
+        if (length(md) != 1 || is.na(md)) 
+            stop("median must be a single number")
+    if (!missing(conf.level)) 
+        if (length(conf.level) != 1 || is.na(conf.level) || conf.level < 
+            0 || conf.level > 1) 
+            stop("conf.level must be a number between 0 and 1")
+    if (is.null(y)) {
+        dname <- paste(deparse(substitute(x)))
+        x <- sort(x)
+        diff <- (x - md)
+        n <- length(x)
+        nt <- length(x) - sum(diff == 0)
+        s <- sum(diff > 0)
+        estimate <- median(x)
+        method <- c("One-sample Sign-Test")
+        names(estimate) <- c("median of x")
+        names(md) <- "median"
+        names(s) <- "s"
+        CIS <- "Conf Intervals"
+        if (alternative == "less") {
+            pval <- sum(dbinom(0:s, nt, 0.5))
+            loc <- c(0:n)
+            prov <- (dbinom(loc, n, 0.5))
+            k <- loc[cumsum(prov) > (1 - conf.level)][1]
+            if (k < 1) {
+                conf.level <- (1 - (sum(dbinom(k, n, 0.5))))
+                xl <- -Inf
+                xu <- x[n]
+                ici <- c(xl, xu)
+            }
+            else {
+                ci1 <- c(-Inf, x[n - k + 1])
+                acl1 <- (1 - (sum(dbinom(0:k - 1, n, 0.5))))
+                ci2 <- c(-Inf, x[n - k])
+                acl2 <- (1 - (sum(dbinom(0:k, n, 0.5))))
+                xl <- -Inf
+                xu <- (((x[n - k + 1] - x[n - k]) * (conf.level - 
+                  acl2))/(acl1 - acl2)) + x[n - k]
+                ici <- c(xl, xu)
+            }
+        }
+        else if (alternative == "greater") {
+            pval <- (1 - sum(dbinom(0:s - 1, nt, 0.5)))
+            loc <- c(0:n)
+            prov <- (dbinom(loc, n, 0.5))
+            k <- loc[cumsum(prov) > (1 - conf.level)][1]
+            if (k < 1) {
+                conf.level <- (1 - (sum(dbinom(k, n, 0.5))))
+                xl <- x[1]
+                xu <- Inf
+                ici <- c(xl, xu)
+            }
+            else {
+                ci1 <- c(x[k], Inf)
+                acl1 <- (1 - (sum(dbinom(0:k - 1, n, 0.5))))
+                ci2 <- c(x[k + 1], Inf)
+                acl2 <- (1 - (sum(dbinom(0:k, n, 0.5))))
+                xl <- (((x[k] - x[k + 1]) * (conf.level - acl2))/(acl1 - 
+                  acl2)) + x[k + 1]
+                xu <- Inf
+                ici <- c(xl, xu)
+            }
+        }
+        else {
+            p1 <- sum(dbinom(0:s, nt, 0.5))
+            p2 <- (1 - sum(dbinom(0:s - 1, nt, 0.5)))
+            pval <- min(2 * p1, 2 * p2, 1)
+            loc <- c(0:n)
+            prov <- (dbinom(loc, n, 0.5))
+            k <- loc[cumsum(prov) > (1 - conf.level)/2][1]
+            if (k < 1) {
+                conf.level <- (1 - 2 * (sum(dbinom(k, n, 0.5))))
+                xl <- x[1]
+                xu <- x[n]
+                ici <- c(xl, xu)
+            }
+            else {
+                ci1 <- c(x[k], x[n - k + 1])
+                acl1 <- (1 - 2 * (sum(dbinom(0:k - 1, n, 0.5))))
+                ci2 <- c(x[k + 1], x[n - k])
+                acl2 <- (1 - 2 * (sum(dbinom(0:k, n, 0.5))))
+                xl <- (((x[k] - x[k + 1]) * (conf.level - acl2))/(acl1 - 
+                  acl2)) + x[k + 1]
+                xu <- (((x[n - k + 1] - x[n - k]) * (conf.level - 
+                  acl2))/(acl1 - acl2)) + x[n - k]
+                ici <- c(xl, xu)
+            }
+        }
+    }
+    else {
+        if (length(x) != length(y)) 
+            stop("Length of x must equal length of y")
+        xy <- sort(x - y)
+        diff <- (xy - md)
+        n <- length(xy)
+        nt <- length(xy) - sum(diff == 0)
+        s <- sum(diff > 0)
+        dname <- paste(deparse(substitute(x)), " and ", deparse(substitute(y)), 
+            sep = "")
+        estimate <- median(xy)
+        method <- c("Dependent-samples Sign-Test")
+        names(estimate) <- c("median of x-y")
+        names(md) <- "median difference"
+        names(s) <- "S"
+        CIS <- "Conf Intervals"
+        if (alternative == "less") {
+            pval <- sum(dbinom(0:s, nt, 0.5))
+            loc <- c(0:n)
+            prov <- (dbinom(loc, n, 0.5))
+            k <- loc[cumsum(prov) > (1 - conf.level)][1]
+            if (k < 1) {
+                conf.level <- (1 - (sum(dbinom(k, n, 0.5))))
+                xl <- -Inf
+                xu <- xy[n]
+                ici <- c(xl, xu)
+            }
+            else {
+                ci1 <- c(-Inf, xy[n - k + 1])
+                acl1 <- (1 - (sum(dbinom(0:k - 1, n, 0.5))))
+                ci2 <- c(-Inf, xy[n - k])
+                acl2 <- (1 - (sum(dbinom(0:k, n, 0.5))))
+                xl <- -Inf
+                xu <- (((xy[n - k + 1] - xy[n - k]) * (conf.level - 
+                  acl2))/(acl1 - acl2)) + xy[n - k]
+                ici <- c(xl, xu)
+            }
+        }
+        else if (alternative == "greater") {
+            pval <- (1 - sum(dbinom(0:s - 1, nt, 0.5)))
+            loc <- c(0:n)
+            prov <- (dbinom(loc, n, 0.5))
+            k <- loc[cumsum(prov) > (1 - conf.level)][1]
+            if (k < 1) {
+                conf.level <- (1 - (sum(dbinom(k, n, 0.5))))
+                xl <- xy[1]
+                xu <- Inf
+                ici <- c(xl, xu)
+            }
+            else {
+                ci1 <- c(xy[k], Inf)
+                acl1 <- (1 - (sum(dbinom(0:k - 1, n, 0.5))))
+                ci2 <- c(xy[k + 1], Inf)
+                acl2 <- (1 - (sum(dbinom(0:k, n, 0.5))))
+                xl <- (((xy[k] - xy[k + 1]) * (conf.level - acl2))/(acl1 - 
+                  acl2)) + xy[k + 1]
+                xu <- Inf
+                ici <- c(xl, xu)
+            }
+        }
+        else {
+            p1 <- sum(dbinom(0:s, nt, 0.5))
+            p2 <- (1 - sum(dbinom(0:s - 1, nt, 0.5)))
+            pval <- min(2 * p1, 2 * p2, 1)
+            loc <- c(0:n)
+            prov <- (dbinom(loc, n, 0.5))
+            k <- loc[cumsum(prov) > (1 - conf.level)/2][1]
+            if (k < 1) {
+                conf.level <- (1 - 2 * (sum(dbinom(k, n, 0.5))))
+                xl <- xy[1]
+                xu <- xy[n]
+                ici <- c(xl, xu)
+            }
+            else {
+                ci1 <- c(xy[k], xy[n - k + 1])
+                acl1 <- (1 - 2 * (sum(dbinom(0:k - 1, n, 0.5))))
+                ci2 <- c(xy[k + 1], xy[n - k])
+                acl2 <- (1 - 2 * (sum(dbinom(0:k, n, 0.5))))
+                xl <- (((xy[k] - xy[k + 1]) * (conf.level - acl2))/(acl1 - 
+                  acl2)) + xy[k + 1]
+                xu <- (((xy[n - k + 1] - xy[n - k]) * (conf.level - 
+                  acl2))/(acl1 - acl2)) + xy[n - k]
+                ici <- c(xl, xu)
+            }
+        }
+    }
+    if (k < 1) {
+        cint <- ici
+        attr(cint, "conf.level") <- conf.level
+        rval <- structure(list(statistic = s, p.value = pval, 
+            estimate = estimate, null.value = md, alternative = alternative, 
+            method = method, data.name = dname, conf.int = cint))
+        oldClass(rval) <- "htest"
+        return(rval)
+    }
+    else {
+        result1 <- c(acl2, ci2)
+        result2 <- c(conf.level, ici)
+        result3 <- c(acl1, ci1)
+        Confidence.Intervals <- round(as.matrix(rbind(result1, 
+            result2, result3)), 4)
+        cnames <- c("Conf.Level", "L.E.pt", "U.E.pt")
+        rnames <- c("Lower Achieved CI", "Interpolated CI", "Upper Achieved CI")
+        dimnames(Confidence.Intervals) <- list(rnames, cnames)
+        cint <- ici
+        attr(cint, "conf.level") <- conf.level
+        rval <- structure(list(statistic = s, parameter = NULL, 
+            p.value = pval, conf.int = cint, estimate = estimate, 
+            null.value = md, alternative = alternative, method = method, 
+            data.name = dname))
+        oldClass(rval) <- "htest"
+rval$Confidence.Intervals <- Confidence.Intervals
+return(rval)
+    }
+}
+```
+
+
+### Create a function that will generate data from normal, logistic, uniform, or double exponential. Allow the function to conduct t, sign, Wilcoxon, and van der Waerden normal scores tests.
+
+* For the **normal** distribution, **parm1** is the desired effect size (in standard deviation units), and **parm2** is the desired standard deviation.
+
+* For the **logistic** distribution, **parm1** is the desired effect size (in standard deviation units), and **parm2** is the desired standard deviation. The scale parameter will be calculated using the user-defined standard deviation.
+
+* For the **double exponential ** distribution, **parm1** is the desired effect size (in standard deviation units), and **parm2** is the desired standard deviation. The scale parameter will be calculated using the user-defined standard deviation. The double exponential distribution is in the smoothmest package so it needs to be installed prior to running.
+
+* For the **uniform** distribution, **parm1** is the desired effect size (in standard deviation units), and **parm2** is the desired standard deviation. In my test runs, the range ends up being about 3.4 times the standard deviation.
+
+For each of the distribution commands, the mean of the alternative distribution is the product of **parm1** and **parm2**. The mean of the null distribution is always zero. The data generation is done by creating a matrix that has one row for each replication (r) and one column for each person sampled (n). The matrix is an rxn matrix.
+
+Each row in the sample matrix represents one sample of size n. The test specified to produce power is conducted by row. The estimated power for each test is the proportion of rejected null hypotheses across all replications.
+
+```{r}
+onesam.power<-function(dist, test, n, parm1, parm2, draws){
+  draws <- draws
+  n <- n
+  if(dist=="normal"){
+    mu <- parm1*parm2
+    sigma <- parm2
+    samp <- matrix(rnorm(n * draws, mu, sigma), byrow = draws, ncol = n)
+  }
+  if(dist=="logistic"){
+    location <- parm1*parm2
+    scale <- parm2*.5513288954
+    samp <- matrix(rlogis(n * draws, location, scale), byrow = draws, ncol = n)
+  }  
+  if(dist=="dexp"){
+    require(smoothmest)
+    mu <- parm1*parm2
+    lambda <- parm2/sqrt(2)
+    samp <- matrix(rdoublex(n * draws, mu, lambda), byrow = draws, ncol = n)
+  } 
+  if(dist=="uniform"){      
+    mu <- parm1*parm2
+    temp <- ((parm2/sqrt(1/12)*.5)*-1)
+    max <- -temp+mu
+    min <- temp+mu
+    samp <- matrix(runif(n * draws, min, max), byrow = draws, ncol = n)
+  }  
+  if(test=="sign"){
+    p.vals<-apply(samp, 1, function(x)
+      gSIGN.test(x, md = 0, alternative = "two.sided", conf.level = 0.95)$p.value)
+    power <- sum(p.vals < .05)/draws
+    return(power)
+  }
+  if(test=="t"){
+    # The apply command is used to apply a function to rows or columns of a matrix.
+    # Here I'm saying to apply function x to the sample matrix (samp) to each row (1).
+    p.vals<-apply(samp, 1, function(x)
+      t.test(x, mu=0, alternative = "two.sided")$p.value)
+    power <- sum(p.vals < .05)/draws
+    return(power)}
+  if(test=="vdw"){
+    require(snpar)
+    p.vals<-apply(samp, 1, function(x)
+      ns.test(x, q=0)$p.value)
+    power <- sum(p.vals < .05)/draws
+    return(power)}  
+  if(test=="wilcoxon"){
+    p.vals<-apply(samp, 1, function(x)
+      wilcox.test(x, mu=0)$p.value)
+    power <- sum(p.vals < .05)/draws
+    return(power)}
+} 
+```
+
+#### Example of the onesam.power function
+Below I show the empirically-based power of the Wilcoxon test using data generated from a uniform distribution with an effect size of .2. The sample size is 30, and this is replicated 1000 times.
+
+```{r}
+onesam.power("uniform", "wilcoxon", n=30, parm1 = .2, parm2 = 1, draws = 1000)
+```
+
+
+### Finding the sample size for power of 0.8.
+
+The code below returns the sample size that produces power of .8 to be used in the LRE calculations. Below is an example of using the double exponential distribution with an effect size of .5. This is  replication 10,000 times. This is going to take some additional work. The second argument of the optimize() command are the boundaries of the search, which is minimum and maximum sample sizes to consider. The function returns:
+
+* The returned sample size
+* The value of the minimization optimizer; that is, how close power was to .8
+* The specified distribution
+* The test used to compute power
+* The specified effect size
+* The sample size needed (rounded up) to produce power of .8.
+
+Ultimately, I think we want to write these to a separate dataset as backup.
+
+```{r error=FALSE, warning=FALSE, message=FALSE}
+distr<-"dexp"
+proc<-"t"
+es<-.5
+parm_two<-1
+  find.n<-function(x)abs(onesam.power(dist=distr, test=proc, n=x, parm1=es, parm2=parm_two, draws=10000)-.8)
+result<-optimize(find.n, c(4,100), tol = 0.0001)
+dat<-as.data.frame(t(as.matrix(unlist(result))))
+dat$dist<-distr
+dat$test<-proc
+dat$es<-es
+dat$samplesize<-ceiling(dat$minimum)
+dat
+```
+
+
+### Next Steps
+As I've been working through this, I realized that I may be opening us up to an unnecessary source of variability with this code. I think each test should be conducted on each generated sample rather than generating a new sample for each test. At present, the code generates a new sample for each procedure. For example, if we wanted to determine the power of sign test versus Wilcoxon, the code generates one sample for the sign test and a second sample for the Wilcoxon. On average, the two samples should be equivalent, but they aren't for any given replication. I now think we should generate a data set, analyze it using each of competing procedures, and return the power of these procedures across replications. I suspect that this will not matter all that much in the long run, but I'd rather control the things we are able to rather than leaving them to chance.
+
+
+```{r}
+
+onesam.power<-function(dist, n, parm1, parm2, draws){
+  draws <- draws
+  n <- n
+  if(dist=="normal"){
+    mu <- parm1*parm2
+    sigma <- parm2
+    samp <- matrix(rnorm(n * draws, mu, sigma), byrow = draws, ncol = n)
+  }
+  if(dist=="logistic"){
+    location <- parm1*parm2
+    scale <- parm2*.5513288954
+    samp <- matrix(rlogis(n * draws, location, scale), byrow = draws, ncol = n)
+  }  
+  if(dist=="dexp"){
+    require(smoothmest)
+    mu <- parm1*parm2
+    lambda <- parm2/sqrt(2)
+    samp <- matrix(rdoublex(n * draws, mu, lambda), byrow = draws, ncol = n)
+  } 
+  if(dist=="uniform"){      
+    mu <- parm1*parm2
+    temp <- ((parm2/sqrt(1/12)*.5)*-1)
+    max <- -temp+mu
+    min <- temp+mu
+    samp <- matrix(runif(n * draws, min, max), byrow = draws, ncol = n)
+  }  
+
+    p.vals<-apply(samp, 1, function(x)
+      gSIGN.test(x, md = 0, alternative = "two.sided", conf.level = 0.95)$p.value)
+    signpower <- sum(p.vals < .05)/draws
+    #return(signpower)
+
+
+    # The apply command is used to apply a function to rows or columns of a matrix.
+    # Here I'm saying to apply function x to the sample matrix (samp) to each row (1).
+    p.vals<-apply(samp, 1, function(x)
+      t.test(x, mu=0, alternative = "two.sided")$p.value)
+    tpower <- sum(p.vals < .05)/draws
+    #return(power)
+    
+
+    require(snpar)
+    p.vals<-apply(samp, 1, function(x)
+      ns.test(x, q=0)$p.value)
+    vdwpower <- sum(p.vals < .05)/draws
+    #return(power)
+    
+
+    p.vals<-apply(samp, 1, function(x)
+      wilcox.test(x, mu=0)$p.value)
+    wilcoxonpower <- sum(p.vals < .05)/draws
+    #return(power)
+    
+allpower<-cbind(dist, n, parm1, parm2, signpower, tpower, vdwpower, wilcoxonpower)
+colnames(allpower)<-c("Dist", "Sample_Size", "ES", "SD", "Sign", "t", "VDW", "Wilc")
+#return(allpower)
+write.table(allpower, paste(c("C:\\Users\\grant_morgan\\Box Sync\\Research\\Mike Seaman\\allpower.csv")), append=TRUE, sep=",", row.names = FALSE)
+} 
+
+onesam.power("dexp", n=1728, parm1 = .05, parm2 = 1, draws = 100000)
+
+
+
+onesam.power("normal", n=20, parm1 = .52, parm2 = 1, draws = 100000)
+onesam.power("normal", n=5, parm1=0.05, parm2 = 1, draws = 100000)
+
+onesam.power("normal", n=10, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("normal", n=5, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=10, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=15, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=20, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=25, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=30, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=35, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=40, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=45, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("normal", n=50, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=5, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=10, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=15, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=20, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=25, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=30, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=35, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=40, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=45, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("logistic", n=50, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=5, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=10, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=15, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=20, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=25, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=30, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=35, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=40, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=45, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("uniform", n=50, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.05, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.15, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.2, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.25, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.3, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.35, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.4, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.45, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.5, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.55, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.6, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.65, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.7, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.75, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.8, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.85, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.9, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=0.95, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=5, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=10, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=15, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=20, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=25, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=30, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=35, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=40, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=45, parm1=1, parm2 = 1, draws = 10000)
+onesam.power("dexp", n=50, parm1=1, parm2 = 1, draws = 10000)
+
+
+
+
+
+
+
+onesam.alpha<-function(dist, n, parm1, parm2, draws){
+  draws <- draws
+  n <- n
+  if(dist=="normal"){
+    mu <- parm1*parm2
+    sigma <- parm2
+    samp <- matrix(rnorm(n * draws, mu, sigma), byrow = draws, ncol = n)
+  }
+  if(dist=="logistic"){
+    location <- parm1*parm2
+    scale <- parm2*.5513288954
+    samp <- matrix(rlogis(n * draws, location, scale), byrow = draws, ncol = n)
+  }  
+  if(dist=="dexp"){
+    require(smoothmest)
+    mu <- parm1*parm2
+    lambda <- parm2/sqrt(2)
+    samp <- matrix(rdoublex(n * draws, mu, lambda), byrow = draws, ncol = n)
+  } 
+  if(dist=="uniform"){      
+    mu <- parm1*parm2
+    temp <- ((parm2/sqrt(1/12)*.5)*-1)
+    max <- -temp+mu
+    min <- temp+mu
+    samp <- matrix(runif(n * draws, min, max), byrow = draws, ncol = n)
+  }  
+
+    p.vals<-apply(samp, 1, function(x)
+      gSIGN.test(x, md = 0, alternative = "two.sided", conf.level = 0.95)$p.value)
+    signpower <- sum(p.vals > .05)/draws
+    #return(signpower)
+
+
+    # The apply command is used to apply a function to rows or columns of a matrix.
+    # Here I'm saying to apply function x to the sample matrix (samp) to each row (1).
+    p.vals<-apply(samp, 1, function(x)
+      t.test(x, mu=0, alternative = "two.sided")$p.value)
+    tpower <- sum(p.vals > .05)/draws
+    #return(power)
+    
+
+    require(snpar)
+    p.vals<-apply(samp, 1, function(x)
+      ns.test(x, q=0)$p.value)
+    vdwpower <- sum(p.vals > .05)/draws
+    #return(power)
+    
+
+    p.vals<-apply(samp, 1, function(x)
+      wilcox.test(x, mu=0)$p.value)
+    wilcoxonpower <- sum(p.vals > .05)/draws
+    #return(power)
+    
+allpower<-cbind(dist, n, parm1, parm2, signpower, tpower, vdwpower, wilcoxonpower)
+colnames(allpower)<-c("Dist", "Sample_Size", "ES", "SD", "Sign", "t", "VDW", "Wilc")
+#return(allpower)
+write.table(allpower, paste(c("C:\\Users\\grant_morgan\\Box Sync\\Research\\Mike Seaman\\alltypeI.csv")), append=TRUE, sep=",", row.names = FALSE)
+} 
+
+
+
+```
+
+```{r}
+distr<-"dexp"
+proc<-"t"
+es<-.5
+parm_two<-1
+  find.n<-function(x)abs(onesam.power(dist=distr, test=proc, n=x, parm1=es, parm2=parm_two, draws=10000)-.8)
+result<-optimize(find.n, c(4,100), tol = 0.0001)
+dat<-as.data.frame(t(as.matrix(unlist(result))))
+dat$dist<-distr
+dat$test<-proc
+dat$es<-es
+dat$samplesize<-ceiling(dat$minimum)
+dat
